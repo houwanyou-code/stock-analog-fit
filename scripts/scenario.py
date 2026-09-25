@@ -146,8 +146,8 @@ def run(a):
     for c in cands:
         if all(abs((c[2] - s).days) > 10 for s in seen):
             seen.append(c[2])
-            sens.append(dict(锚点=c[2].date(), 相关=round(c[0], 2), 振幅比=round(float(c[3]), 2),
-                             时间伸缩=f"{c[1]:g}x", 目标价=round(float(c[4]), 2)))
+            sens.append(dict(anchor=c[2].date(), corr=round(c[0], 2), amp_ratio=round(float(c[3]), 2),
+                             speed=f"{c[1]:g}x", target=round(float(c[4]), 2)))
             say(f"  锚点 {c[2].date()}  相关 {c[0]:.2f}  振幅比 {c[3]:.2f}  时间 {c[1]:g}x  → 目标 {c[4]:.1f}")
         if len(seen) == 4:
             break
@@ -196,7 +196,15 @@ def run(a):
                target_date=to_date(p_end).date(), days=int(round((p_end - e) / m)), ext_day=ext_day.date(),
                ext_px=float(ext_px), worst=float(dd.loc[worst]), worst_from=float(run_[worst] * k),
                worst_to=float(seg[worst] * k))
-    return {"lines": lines, "fig": fig, "key": key, "sensitivity": sens}
+    to_d = lambda x: [pd.Timestamp(v.date()) for v in mdates.num2date(np.atleast_1d(x))]  # noqa: E731
+    plot = dict(target=a.target, ref=a.ref, up=up, tgt_dates=list(tgt.index), tgt=tgt["Close"].to_numpy(),
+                dates=to_d(xs), proj=proj, is_hist=h, ref_dates=[x.date() for x in idx[js]],
+                ref_px=ref["Close"].to_numpy()[js], today=today, target_date=to_d(pd_num)[0],
+                target_px=float(target_px), ext_day=ext_day.date(), ext_px=float(ext_px),
+                worst_date=to_d(to_num(idx.get_loc(worst)))[0], worst_px=float(seg[worst] * k),
+                worst_pct=float(dd.loc[worst]), top_date=top.date(), bottom_date=worst.date(),
+                fit_start=idx[e - W + 1].date(), anchor=anchor.date(), corr=corr, speed=m)
+    return {"lines": lines, "fig": fig, "key": key, "sensitivity": sens, "plot": plot}
 
 
 if __name__ == "__main__":

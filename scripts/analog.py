@@ -60,6 +60,14 @@ def path(rv, s, W, m, L, H):
                                   resample(np.log(rv[s + W - 1:s + W + F]), H + 1)[1:]]))
 
 
+def seg_meta(index, rv, s, W, m, L, H):
+    """与 path() 对齐的每个点在参照股上的（最近）真实日期和价格，用于交互图悬停显示。"""
+    F = int(round(H * m))
+    pos = np.concatenate([s + np.linspace(0, W - 1, L), s + W - 1 + np.linspace(0, F, H + 1)[1:]])
+    pos = np.clip(np.round(pos).astype(int), 0, len(rv) - 1)
+    return [index[i].date() for i in pos], rv[pos]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("target")
@@ -175,7 +183,14 @@ def run(a):
     fig.tight_layout()
     summary = {h: dict(median=df[f"+{h}d"].median(), up=(df[f"+{h}d"] > 0).mean(),
                        price=last * (1 + df[f"+{h}d"].median())) for h in (5, 10, 20, H)}
-    return {"lines": lines, "table": df, "fig": fig, "summary": summary, "last": last}
+    segs = []
+    for (corr, amp, s, W, m), p in zip(picks, paths):
+        d, px = seg_meta(ref.index, rv, s, W, m, L, H)
+        segs.append(dict(ticker=a.ref, start=ref.index[s].date(), end=ref.index[s + W - 1].date(),
+                         corr=corr, speed=m, p=p, dates=d, px=px))
+    plot = dict(L=L, H=H, target=a.target, ref=a.ref, tgt_dates=[x.date() for x in tgt.index],
+                tgt=tgt.to_numpy(), last=float(last), segs=segs)
+    return {"lines": lines, "table": df, "fig": fig, "summary": summary, "last": last, "plot": plot}
 
 
 if __name__ == "__main__":

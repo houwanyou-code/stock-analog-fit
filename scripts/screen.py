@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from analog import match, path
+from analog import match, path, seg_meta
 from common import fmt_log_axis, load, out_path, setup_fonts
 
 # 候选池：近年大幅波动的成长/题材股、新上市/SPAC、加密与金融科技、电动车、AI/量子
@@ -92,7 +92,9 @@ def run(a):
                        speed=f"{m:g}x", corr=corr, amp=amp, p0=rv[st], p1=rv[st + W - 1],
                        **{f"+{h}d": p[L - 1 + h] - 1 for h in (5, 10, 20, H)},
                        maxup=p[L - 1:].max() - 1, maxdd=p[L - 1:].min() - 1)
-            segs.append((row, p))
+            d, px = seg_meta(s.index, rv, st, W, m, L, H)
+            segs.append((row, p, dict(ticker=tk, start=row["start"], end=row["end"], corr=corr, speed=m,
+                                      p=p, dates=d, px=px)))
             if rank == 0:
                 best_rows.append(row)
 
@@ -102,7 +104,7 @@ def run(a):
 
     segs.sort(key=lambda x: -x[0]["corr"])
     chosen = [x for x in segs if x[0]["corr"] >= a.min_corr][:a.top] or segs[:a.top]
-    df = pd.DataFrame([r for r, _ in chosen])
+    df = pd.DataFrame([x[0] for x in chosen])
     pd.set_option("display.width", 230)
     fmt = {c: "{:+.1%}".format for c in df.columns if c.startswith(("+", "max"))}
     fm = {**fmt, "corr": "{:.2f}".format, "amp": "{:.2f}".format, "p0": "{:.2f}".format, "p1": "{:.2f}".format}
@@ -126,7 +128,7 @@ def run(a):
     top_n = min(5, len(chosen))
     cols = plt.cm.tab10(np.arange(top_n))
     ax1.plot(xt, tgt.to_numpy() / last, color="#c2185b", lw=3, label=f"{a.target} 实际", zorder=5)
-    for (r, p), c in zip(chosen[:top_n], cols):
+    for (r, p, _), c in zip(chosen[:top_n], cols):
         ax1.plot(xt, p[:L], color=c, lw=1.4, label=f"{r['ticker']} {r['start']}→{r['end']} ({r['speed']}, r={r['corr']:.2f})")
         ax1.plot(xf, p[L - 1:], color=c, lw=1.4, ls="--")
     ax1.axvline(0, color="gray", ls=":")
@@ -137,9 +139,9 @@ def run(a):
     ax1.legend(loc="upper left", fontsize=8)
     ax1.grid(alpha=0.2)
 
-    P = np.array([p[L - 1:] for _, p in chosen])
+    P = np.array([x[1][L - 1:] for x in chosen])
     ax2.plot(xt, tgt.to_numpy() / last, color="#c2185b", lw=3, label=a.target)
-    for _, p in chosen:
+    for _, p, _ in chosen:
         ax2.plot(xa, p, color="#3b82c4", lw=0.8, alpha=0.5)
     ax2.fill_between(xf, np.quantile(P, .25, 0), np.quantile(P, .75, 0), color="#3b82c4", alpha=0.25, label="25%–75% 区间")
     ax2.fill_between(xf, P.min(0), P.max(0), color="#3b82c4", alpha=0.08, label="最小–最大")
@@ -153,7 +155,10 @@ def run(a):
     ax2.legend(loc="upper left", fontsize=9)
     ax2.grid(alpha=0.2)
     fig.tight_layout()
-    return {"lines": lines, "fig": fig, "table": df, "all_best": allbest, "summary": summary, "last": last}
+    plot = dict(L=L, H=H, target=a.target, tgt_dates=[x.date() for x in tgt.index], tgt=tgt.to_numpy(),
+                last=float(last), segs=[x[2] for x in chosen])
+    return {"lines": lines, "fig": fig, "table": df, "all_best": allbest, "summary": summary, "last": last,
+            "plot": plot}
 
 
 if __name__ == "__main__":

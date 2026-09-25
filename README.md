@@ -38,9 +38,9 @@ python3 -m pip install -r requirements.txt
 streamlit run app.py          # opens http://localhost:8501
 ```
 
-Pick a feature in the sidebar, fill in tickers and parameters (advanced options are in the "高级参数" panel), and click the button. Charts and tables can be downloaded, and every page accepts CSV uploads instead of live Yahoo data.
+Pick a feature in the sidebar, fill in tickers and parameters (less common options are under "Advanced settings"), and click the button. The UI is in English. Charts are interactive (Plotly): drag to zoom, double-click to reset, hover for values (analog charts also show the reference stock's real date and price at each point), and use the camera icon to save a PNG. Tables can be downloaded as CSV, and every page accepts CSV uploads instead of live Yahoo data.
 
-**Deploy for free (a link you can open on your phone):** on [share.streamlit.io](https://share.streamlit.io), create an app from this repo with main file `app.py`. `packages.txt` installs a CJK font so Chinese chart labels render there.
+**Deploy for free (a link you can open on your phone):** on [share.streamlit.io](https://share.streamlit.io), create an app from this repo with main file `app.py`.
 
 ## Run the scripts directly
 

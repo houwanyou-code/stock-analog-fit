@@ -154,7 +154,55 @@ def run(ticker, period="2y", csv=None):
     if len(df) < 20:
         raise SystemExit(f"{ticker}: 数据不足 ({len(df)} 行)")
     r, ma = analyze(ticker, df)
-    return {"lines": verdict(r).split("\n"), "fig": plot(ticker, df, r, ma), "result": r, "df": df}
+    return {"lines": verdict(r).split("\n"), "lines_en": verdict_en(r), "fig": plot(ticker, df, r, ma),
+            "result": r, "df": df, "ma": ma}
+
+
+def verdict_en(r):
+    """English summary bullets for the web UI (same logic as verdict())."""
+    L, S, P = r["long"], r["short"], r["poly"]
+    short = r["n"] < 126
+
+    def rate(d):
+        return f"{d['chg']:+.1%} over the period" if short else f"{d['ann']:+.1%} annualized"
+
+    def dirn(x):
+        return "Up" if x > 0.05 else ("Down" if x < -0.05 else "Sideways")
+
+    out = [
+        f"Overall trend (log-linear regression): {dirn(L['ann'])}, {rate(L)}, R² {L['r2']:.2f}, "
+        f"channel position {L['z']:+.2f}σ",
+        f"Last {r['short_win']} days: {dirn(S['ann'])}, {rate(S)}, R² {S['r2']:.2f}",
+        "Cubic fit: the end of the curve is heading " + ("up" if P["slope_end"] > 0 else "down")
+        + (" and accelerating" if P["slope_end"] * P["curv_end"] > 0 else " but slowing / may be turning"),
+    ]
+    if L["r2"] < 0.2:
+        out.append("Overall R² is very low: the whole period has no single direction (range or V shape), "
+                   "so the recent trend matters more")
+    ma = r["ma"]
+    ws = sorted(ma)[-3:]
+    if len(ws) >= 2 and all(np.isfinite([ma[w] for w in ws])):
+        v = [ma[w] for w in ws]
+        order = ("bullish alignment (short above long)" if all(a > b for a, b in zip(v, v[1:])) else
+                 "bearish alignment (short below long)" if all(a < b for a, b in zip(v, v[1:])) else "tangled")
+        out.append("Moving averages " + ", ".join(f"MA{w} {ma[w]:.2f}" for w in ws) + f": {order}")
+    rl, sl = r["res_line"], r["sup_line"]
+    if rl and sl:
+        xe = r["n"] - 1
+        res_now, sup_now = rl[0] * xe + rl[1], sl[0] * xe + sl[1]
+        pat = ("converging triangle (breakout direction pending)" if rl[0] < 0 < sl[0] else
+               "rising channel" if rl[0] > 0 and sl[0] > 0 else
+               "falling channel" if rl[0] < 0 and sl[0] < 0 else "broadening pattern (volatility expanding)")
+        out.append(f"Resistance ≈ {res_now:.2f}, support ≈ {sup_now:.2f}: {pat}")
+        if r["last"] > res_now:
+            out.append("Signal: close is above the resistance line (upside breakout)")
+        elif r["last"] < sup_now:
+            out.append("Signal: close is below the support line (downside breakdown)")
+    if L["z"] > 2:
+        out.append("Price is above the +2σ channel: stretched short term")
+    elif L["z"] < -2:
+        out.append("Price is below the −2σ channel: oversold")
+    return out
 
 
 def main():
