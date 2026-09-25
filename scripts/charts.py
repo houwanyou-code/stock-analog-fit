@@ -20,23 +20,21 @@ from plotly.subplots import make_subplots
 from common import log_ticks
 
 # ---------------------------------------------------------------- tokens
-PALETTE = {
-    "light": dict(
-        series=["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"],
-        up="#1baf7a", down="#e34948",
-        surface="#fcfcfb", ink="#0b0b0b", ink2="#52514e", muted="#898781",
-        grid="#e1e0d9", axis="#c3c2b7", border="rgba(11,11,11,0.10)",
-        wash="rgba(42,120,214,0.14)", wash_faint="rgba(42,120,214,0.06)", gray_wash="rgba(137,135,129,0.12)",
-    ),
-    "dark": dict(
-        series=["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"],
-        up="#199e70", down="#e66767",
-        surface="#1a1a19", ink="#ffffff", ink2="#c3c2b7", muted="#898781",
-        grid="#2c2c2a", axis="#383835", border="rgba(255,255,255,0.10)",
-        wash="rgba(57,135,229,0.22)", wash_faint="rgba(57,135,229,0.09)", gray_wash="rgba(137,135,129,0.16)",
-    ),
-}
-FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+# Lamborghini-inspired dark system (true black, charcoal, white, gold). Data colors: target = data gold
+# (#b88a00 — brand gold #FFC000 is too light for the dark lightness band next to other series),
+# references follow in the order below. Validated with validate_palette.js on --surface #000000
+# (adjacent: CVD ΔE 9.4, normal 22.5; gold↔blue all-pairs 27.5). Candles are monochrome: hollow up /
+# filled down, so direction never depends on hue.
+_LAMBO = dict(
+    series=["#b88a00", "#3987e5", "#e66767", "#9085e9", "#199e70", "#d95926"],
+    up="#F5F5F5", down="#7D7D7D",
+    surface="#000000", panel="#202020", ink="#FFFFFF", ink2="#969696", muted="#7D7D7D",
+    grid="#202020", axis="#494949", border="#494949", volume="#494949",
+    wash="rgba(184,138,0,0.22)", wash_faint="rgba(184,138,0,0.08)", gray_wash="rgba(125,125,125,0.12)",
+)
+PALETTE = {"light": _LAMBO, "dark": _LAMBO}  # dark only: darkness is the default state
+FONT = "Barlow, Roboto, 'Helvetica Neue', Arial, sans-serif"
+FONT_DISPLAY = "'Barlow Condensed', Barlow, Roboto, 'Helvetica Neue', Arial, sans-serif"
 
 
 def _t(mode):
@@ -49,10 +47,10 @@ def _base(fig, t, title, height, legend_rows=1):
         height=height + 22 * legend_rows,
         paper_bgcolor=t["surface"], plot_bgcolor=t["surface"],
         font=dict(family=FONT, size=12, color=t["ink2"]),
-        title=dict(text=title, x=0, xanchor="left", font=dict(size=15, color=t["ink"])),
+        title=dict(text=title.upper(), x=0, xanchor="left", font=dict(family=FONT_DISPLAY, size=20, color=t["ink"])),
         margin=dict(l=12, r=12, t=48, b=36 + 22 * legend_rows),
         hovermode="x unified",
-        hoverlabel=dict(bgcolor=t["surface"], bordercolor=t["axis"], font=dict(family=FONT, size=12, color=t["ink"])),
+        hoverlabel=dict(bgcolor=t["panel"], bordercolor=t["axis"], font=dict(family=FONT, size=13, color=t["ink"])),
         legend=dict(orientation="h", yanchor="top", y=-0.12, xanchor="left", x=0,
                     font=dict(size=12, color=t["ink2"]), bgcolor="rgba(0,0,0,0)"),
     )
@@ -81,8 +79,8 @@ def _ratio_axis(fig, lo, hi, **kw):
 def _today(fig, t, x):
     """'Today' reference: a solid hairline in the axis tone (not dashed — dashing reads as a threshold)."""
     fig.add_vline(x=x, line_width=1, line_color=t["axis"])
-    fig.add_annotation(x=x, y=1, yref="paper", text="today", showarrow=False, yanchor="bottom",
-                       font=dict(size=11, color=t["muted"]))
+    fig.add_annotation(x=x, y=1, yref="paper", text="TODAY", showarrow=False, yanchor="bottom",
+                       font=dict(size=10, color=t["muted"]))
 
 
 def _end_label(fig, t, x, y, text, xanchor="left", row=None, col=None):
@@ -139,7 +137,7 @@ def kline_chart(res, mode="light"):
             fig.add_trace(go.Scatter(x=d[idx], y=k * idx + b, mode="markers", legendgroup=name, showlegend=False,
                                      marker=dict(symbol=sym, color=t["ink2"], size=9, line=dict(color=t["surface"], width=2)),
                                      hoverinfo="skip"), 1, 1)
-    # candles: hollow up / filled down = secondary encoding for the aqua↔red pair (CVD ΔE 6.5–6.9)
+    # candles: monochrome, hollow up / filled down — direction is carried by shape, not hue
     fig.add_trace(go.Candlestick(x=d, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"], name="Price",
                                  increasing=dict(line=dict(color=t["up"], width=1), fillcolor=t["surface"]),
                                  decreasing=dict(line=dict(color=t["down"], width=1), fillcolor=t["down"]),
@@ -150,7 +148,7 @@ def kline_chart(res, mode="light"):
     fig.add_trace(go.Scatter(x=d[-sw:], y=np.exp(S["k"] * xs + S["b"]), name=f"Last {sw}d trend {tag(S)}",
                              line=dict(color=accent, width=2.5), hovertemplate=_ht("%{y:.2f}", f" last-{sw}d trend")), 1, 1)
     if "Volume" in df:
-        fig.add_trace(go.Bar(x=d, y=df["Volume"], marker=dict(color=t["muted"], line_width=0), opacity=0.55,
+        fig.add_trace(go.Bar(x=d, y=df["Volume"], marker=dict(color=t["volume"], line_width=0),
                              name="Volume", showlegend=False, hovertemplate=_ht("%{y:,.0f}", " volume")), 2, 1)
     _end_label(fig, t, d[-1], r["last"], f"{r['last']:.2f}", row=1, col=1)
     _base(fig, t, f"{r['ticker']} daily · trend fits" + (" · listed < 6 months" if short else ""), 640, 2)
@@ -164,7 +162,7 @@ def kline_chart(res, mode="light"):
                  dict(count=6, label="6M", step="month", stepmode="backward"),
                  dict(count=1, label="1Y", step="year", stepmode="backward"),
                  dict(step="all", label="All")],
-        bgcolor=t["surface"], activecolor=t["grid"], bordercolor=t["axis"], borderwidth=1,
+        bgcolor=t["surface"], activecolor=t["panel"], bordercolor=t["axis"], borderwidth=1,
         font=dict(color=t["ink2"], size=11), x=0, xanchor="left", y=1.0, yanchor="bottom"), row=1, col=1)
     table = pd.DataFrame({"date": [x.date() for x in d], "open": df["Open"].values, "high": df["High"].values,
                           "low": df["Low"].values, "close": df["Close"].values,
@@ -245,7 +243,7 @@ def norm_overlay(plot, n=5, mode="light"):
     allp = np.concatenate(allp)
     _today(fig, t, 0)
     fig.add_hline(y=1, line_width=1, line_color=t["axis"])
-    _base(fig, t, f"{plot['target']} and its {min(n, len(plot['segs']))} most similar windows · dashed = what followed", 520, 3)
+    _base(fig, t, f"{plot['target']} vs. its {min(n, len(plot['segs']))} closest analogs · dashed = what followed", 520, 3)
     _ratio_axis(fig, allp.min(), allp.max(), title_text=f"vs. {plot['target']} latest close")
     fig.update_xaxes(title_text="Trading days from today (references time-scaled to match)", hoverformat="+d")
     days = np.r_[xt, xf[1:]]
@@ -320,8 +318,7 @@ def scenario_chart(plot, mode="light"):
                              hovertemplate=_ht("%{y:.2f}", " after largest " + ("drawdown" if plot["up"] else "rebound"))))
     _end_label(fig, tk, plot["target_date"], plot["target_px"], f"target {plot['target_px']:.4g}", xanchor="right")
     _today(fig, tk, plot["today"])
-    _base(fig, tk, f"{'Bull' if plot['up'] else 'Bear'} case · {t_} following {r}'s path "
-                   f"(anchor {r} {plot['anchor']} = {t_} today, time scale {plot['speed']:g}x)", 560, 3)
+    _base(fig, tk, f"{'Bull' if plot['up'] else 'Bear'} case · {t_} on {r}'s path", 560, 3)
     ys = np.concatenate([plot["tgt"], plot["proj"], [plot["target_px"]]])
     _price_axis(fig, ys.min(), ys.max(), title_text=f"{t_} price")
     table = pd.DataFrame({"date": [x.date() for x in dates], "phase": np.where(h, "fit", "projection"),

@@ -17,13 +17,65 @@ import kline_fit  # noqa: E402
 import scenario  # noqa: E402
 import screen  # noqa: E402
 
-st.set_page_config(page_title="Stock Analog Fit", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Stock Analog Fit", page_icon="⬡", layout="wide")
+
+# Visual language inspired by the Lamborghini DESIGN.md (VoltAgent/awesome-design-md): true black canvas,
+# charcoal (#202020) panels, white type, uppercase condensed headings at weight 400, zero radius, no shadows,
+# gold (#FFC000, hover #917300) only on primary actions, ghost buttons with a 50% white border.
+# LamboType is proprietary; Barlow / Barlow Condensed are the closest free neo-grotesk with width variants.
+STYLE = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;700&family=Barlow+Condensed:wght@400;500&display=swap');
+html, body, [data-testid="stAppViewContainer"], [data-testid="stSidebar"], button, input, textarea, select,
+[data-testid="stMarkdownContainer"], [data-baseweb] { font-family: Barlow, Roboto, "Helvetica Neue", Arial, sans-serif; }
+[data-testid="stDecoration"] { display: none; }
+[data-testid="stHeader"] { background: #000000; }
+h1, h2, h3, h4 { font-family: "Barlow Condensed", Barlow, Roboto, sans-serif !important; font-weight: 400 !important;
+  text-transform: uppercase; letter-spacing: 0; }
+[data-testid="stMain"] h2 { font-size: 3.4rem !important; line-height: 1.02 !important; padding-bottom: 0.25rem; }
+[data-testid="stMain"] h3 { font-size: 1.7rem !important; line-height: 1.2 !important; }
+[data-testid="stSidebar"] h1 { font-size: 1.7rem !important; line-height: 1.1 !important; }
+[data-testid="stSidebar"] { border-right: 1px solid #202020; }
+[data-testid="stCaptionContainer"], .stCaption { color: #7D7D7D !important; }
+/* labels & micro text: uppercase with open tracking */
+label[data-testid="stWidgetLabel"] p, [data-testid="stMetricLabel"] p, [data-testid="stTab"] p,
+[data-testid="stExpander"] summary p {
+  text-transform: uppercase; letter-spacing: 0.96px; font-size: 0.75rem !important; color: #969696; }
+[data-testid="stTab"][aria-selected="true"] p { color: #FFFFFF; }
+[data-testid="stTab"] .react-aria-SelectionIndicator { background-color: #FFFFFF !important; }
+/* stat tiles: condensed display figures, regular weight */
+[data-testid="stMetricValue"] { font-family: "Barlow Condensed", Barlow, sans-serif; font-weight: 400; font-size: 2.6rem; }
+/* input card: charcoal panel, inputs sit on black */
+[class*="st-key-card_"] { background: #202020; border: none !important; border-radius: 0; padding: 1.5rem 1.5rem 1.25rem; }
+[class*="st-key-card_"] [data-baseweb="input"], [class*="st-key-card_"] [data-baseweb="select"] > div,
+[class*="st-key-card_"] [data-baseweb="textarea"], [class*="st-key-card_"] [data-testid="stFileUploaderDropzone"],
+[class*="st-key-card_"] [data-testid="stExpander"] details { background: #000000 !important; }
+/* sidebar navigation: uppercase, large, monochrome */
+[data-testid="stSidebar"] [role="radiogroup"] label p { text-transform: uppercase; letter-spacing: 0.96px;
+  font-size: 0.95rem; color: #969696; }
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) p { color: #FFFFFF; }
+/* buttons: sharp rectangles, uppercase, color-only interactions */
+.stButton button, .stDownloadButton button { border-radius: 0 !important; text-transform: uppercase;
+  letter-spacing: 0.2px; font-weight: 400; transition: background-color .15s, opacity .15s; }
+.stButton button[kind="primary"] { background: #FFC000 !important; color: #000000 !important; border: none !important;
+  padding: 0.75rem 1.5rem; min-height: 3rem; }
+.stButton button[kind="primary"]:hover { background: #917300 !important; }
+.stButton button[kind="primary"] p { color: #000000 !important; }
+.stButton button[kind="secondary"], .stDownloadButton button { background: transparent !important;
+  border: 1px solid rgba(255,255,255,0.5) !important; color: #FFFFFF !important; }
+.stButton button[kind="secondary"]:hover, .stDownloadButton button:hover { background: #1EAEDB !important;
+  border-color: #1EAEDB !important; }
+[data-testid="stAlert"] { border-radius: 0; }
+hr { border-color: #202020 !important; }
+</style>
+"""
+st.markdown(STYLE, unsafe_allow_html=True)
 
 PAGES = {
-    "📈 Trend fit": "Candlestick chart with regression channel, moving averages, support/resistance, pattern and breakout checks.",
-    "🔁 Analog (one reference)": "Find the windows in one reference stock's history that most resemble the target's recent path, overlay them, and see what happened next.",
-    "🔎 Analog screen (many stocks)": "Search a basket of stocks for the windows most similar to the target and summarize the spread of what followed.",
-    "🎯 Scenario projection": "Project the target along a chosen historical run of a reference stock (bull or bear case): target price, timing, drawdowns.",
+    "Trend fit": "Candlestick chart with regression channel, moving averages, support/resistance, pattern and breakout checks.",
+    "Analog": "Find the windows in one reference stock's history that most resemble the target's recent path, overlay them, and see what happened next.",
+    "Analog screen": "Search a basket of stocks for the windows most similar to the target and summarize the spread of what followed.",
+    "Scenario": "Project the target along a chosen historical run of a reference stock (bull or bear case): target price, timing, drawdowns.",
 }
 SCALES = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]
 PLOTLY_CFG = {"displaylogo": False, "scrollZoom": True,
@@ -111,7 +163,8 @@ def kpi(col, label, value, note=None):
 def horizon_metrics(summary, last, target):
     cols = st.columns(len(summary))
     for c, (h, v) in zip(cols, summary.items()):
-        c.metric(f"Median price in {h} trading days", f"{v['price']:.2f}", f"{v['median']:+.1%}")
+        c.metric(f"{h}-day median", f"{v['price']:.2f}", f"{v['median']:+.1%}",
+                 help=f"Median price {h} trading days after the matched windows")
         extra = f"{v['up']:.0%} of cases up"
         if "q1" in v:
             extra += f" · IQR {v['q1']:+.0%} to {v['q3']:+.0%}"
@@ -139,7 +192,7 @@ def analog_params(prefix, default_window=60):
 
 # ---------- pages ----------
 def page_trend():
-    with st.container(border=True):
+    with st.container(border=True, key="card_trend"):
         c1, c2 = st.columns([3, 1])
         tickers = c1.text_input("Tickers (comma-separated)", "NIO, SECZ").upper()
         period = c2.selectbox("Period", ["6mo", "1y", "2y", "5y", "10y", "max"], index=2)
@@ -169,7 +222,7 @@ def page_trend():
 
 
 def page_analog():
-    with st.container(border=True):
+    with st.container(border=True, key="card_analog"):
         c1, c2, c3 = st.columns([2, 2, 1])
         target = c1.text_input("Target ticker", "SECZ").upper().strip()
         ref = c2.text_input("Reference ticker (full history)", "NIO").upper().strip()
@@ -199,7 +252,7 @@ def page_analog():
 
 
 def page_screen():
-    with st.container(border=True):
+    with st.container(border=True, key="card_screen"):
         c1, c2, c3 = st.columns([2, 1, 1])
         target = c1.text_input("Target ticker", "SECZ", key="sc_t").upper().strip()
         since = c2.date_input("Candidate history since", date(2012, 1, 1), key="sc_since")
@@ -236,7 +289,7 @@ def page_screen():
 
 
 def page_scenario():
-    with st.container(border=True):
+    with st.container(border=True, key="card_scenario"):
         c1, c2, c3 = st.columns([2, 2, 2])
         target = c1.text_input("Target ticker", "SECZ", key="sn_t").upper().strip()
         ref = c2.text_input("Reference ticker", "NIO", key="sn_r").upper().strip()
@@ -279,7 +332,7 @@ def page_scenario():
         c[0].caption(f"Latest close {k['last']:.2f}")
         kpi(c[1], "Reached around", str(k["target_date"]), f"≈ {k['days']} trading days from now")
         kpi(c[2], "Anchor", str(k["anchor"]), f"{a.ref} close {k['anchor_px']:.2f} · r {k['corr']:.2f} · {k['speed']:g}x")
-        kpi(c[3], "Largest " + ("drawdown" if a.direction == "up" else "rebound") + " on the way",
+        kpi(c[3], "Largest " + ("drawdown" if a.direction == "up" else "rebound"),
             f"{k['worst']:+.0%}", f"{k['worst_from']:.2f} → {k['worst_to']:.2f}")
         chart(charts.scenario_chart(r["plot"], mode()), "sn_chart", f"{a.target}_{a.ref}_scenario_path.csv")
         st.markdown("**Anchor sensitivity**: target prices when aligned to other candidate dates. Treat the result as a range.")
@@ -288,16 +341,15 @@ def page_scenario():
 
 # ---------- layout ----------
 with st.sidebar:
-    st.title("📈 Stock Analog Fit")
+    st.title("⬡ Stock Analog Fit")
     page = st.radio("Feature", list(PAGES), label_visibility="collapsed")
     st.caption(PAGES[page])
     st.divider()
     st.caption("Charts: drag to zoom, double-click to reset, hover for values, camera icon to save a PNG. "
                "Every chart has a Table tab with the same numbers.")
-    st.caption("Light or dark: follows your system; change it under ⋮ → Settings.")
     st.caption("Data: Yahoo Finance daily bars via yfinance, or your own CSV uploads.")
     st.caption("Scenarios based on historical price patterns only. Not a forecast and not investment advice.")
 
 st.header(page)
-{"📈 Trend fit": page_trend, "🔁 Analog (one reference)": page_analog,
- "🔎 Analog screen (many stocks)": page_screen, "🎯 Scenario projection": page_scenario}[page]()
+{"Trend fit": page_trend, "Analog": page_analog,
+ "Analog screen": page_screen, "Scenario": page_scenario}[page]()

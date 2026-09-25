@@ -1,36 +1,31 @@
-# Light and dark are each defined from the dataviz reference palette (not an automatic flip).
-# Viewers follow their OS setting by default and can switch under ⋮ → Settings.
+# Visual language inspired by the Lamborghini DESIGN.md (VoltAgent/awesome-design-md):
+# true-black canvas, charcoal panels, white type, zero radius, gold reserved for primary buttons
+# (applied in app.py CSS so sliders/radios stay monochrome). Dark only — darkness is the default state.
+# Chart data colors come from the dataviz palette, re-validated on #000000 (see scripts/charts.py).
 
 [theme]
-baseRadius = "0.5rem"
+base = "dark"
+primaryColor = "#FFFFFF"
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#000000"
+textColor = "#FFFFFF"
+borderColor = "#494949"
 showWidgetBorder = true
-chartCategoricalColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
-
-[theme.light]
-primaryColor = "#2a78d6"
-backgroundColor = "#fcfcfb"
-secondaryBackgroundColor = "#f3f2ef"
-textColor = "#0b0b0b"
-borderColor = "#e1e0d9"
-linkColor = "#256abf"
-greenColor = "#006300"
-greenTextColor = "#006300"
-redColor = "#d03b3b"
-redTextColor = "#d03b3b"
-chartCategoricalColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
-
-[theme.dark]
-primaryColor = "#3987e5"
-backgroundColor = "#1a1a19"
-secondaryBackgroundColor = "#242423"
-textColor = "#ffffff"
-borderColor = "#383835"
-linkColor = "#6da7ec"
+baseRadius = "0rem"
+buttonRadius = "0rem"
+linkColor = "#FFCE3E"
 greenColor = "#0ca30c"
 greenTextColor = "#0ca30c"
 redColor = "#d03b3b"
 redTextColor = "#e66767"
-chartCategoricalColors = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"]
+blueColor = "#969696"
+blueBackgroundColor = "#202020"
+blueTextColor = "#F5F5F5"
+yellowBackgroundColor = "#202020"
+yellowTextColor = "#FFCE3E"
+dataframeHeaderBackgroundColor = "#181818"
+dataframeBorderColor = "#202020"
+chartCategoricalColors = ["#b88a00", "#3987e5", "#e66767", "#9085e9", "#199e70", "#d95926"]
 
 [server]
 headless = true
