@@ -1,11 +1,12 @@
 # stock-analog-fit
 
-A Claude skill for stock price history. It does three things:
+A Claude skill for stock price history. It does four things:
 
 | Script | What it does |
 |---|---|
 | `scripts/kline_fit.py` | Daily candlestick chart with trend fitting: log-price regression channel (±2σ), recent-window regression, cubic polynomial, moving averages, support/resistance lines, pattern and breakout detection |
 | `scripts/analog.py` | Finds the windows in a reference ticker's history that look most like the target's recent path (shape correlation + amplitude filter + 0.5–3× time scaling), overlays them on one chart, and projects forward paths |
+| `scripts/screen.py` | Screens a basket of tickers (default ~65 volatile growth, crypto, fintech, EV, AI/quantum, IPO and meme names) for the windows most similar to the target, overlays the top matches, and summarizes the spread of what happened next |
 | `scripts/scenario.py` | Maps a chosen historical leg of a reference ticker (e.g. NIO Jun 2020 → Jan 2021 high) onto the target: target price, timing, drawdowns along the way, and anchor sensitivity |
 
 Usage instructions for Claude are in [`SKILL.md`](SKILL.md) (in Chinese).
@@ -34,6 +35,7 @@ python3 -m pip install -r requirements.txt   # or inside a venv on macOS
 cd scripts
 python3 kline_fit.py NIO SECZ --period 2y
 python3 analog.py SECZ NIO                     # SECZ's last 60 days vs NIO's full history
+python3 screen.py SECZ                         # most similar stocks across a default basket
 python3 scenario.py SECZ NIO --path-start 2020-06-01 --path-end 2021-01-11          # bull case
 python3 scenario.py SECZ NIO --path-start 2021-01-11 --path-end 2022-05-15 --direction down
 ```
