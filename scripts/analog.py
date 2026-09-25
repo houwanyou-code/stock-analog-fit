@@ -74,7 +74,23 @@ def main():
     ap.add_argument("--ref-csv")
     ap.add_argument("--outdir", default=".")
     a = ap.parse_args()
+    res = run(a)
+    print("\n".join(res["lines"]))
+    csv_out = out_path(a.outdir, f"{a.target}_vs_{a.ref}_analog.csv")
+    res["table"].to_csv(csv_out, index=False)
+    out = out_path(a.outdir, f"{a.target}_vs_{a.ref}_analog.png")
+    res["fig"].savefig(out, dpi=130)
+    print(f"\n图: {out}\n表: {csv_out}")
+
+
+def run(a):
+    """a: 带 target/ref/window/horizon/top/scales/amp_min/amp_max/target_csv/ref_csv 属性的对象。
+    返回 {"lines": 摘要文字行, "table": 相似区间 DataFrame, "fig": matplotlib Figure, "summary": 各期限中位数}"""
     setup_fonts()
+    lines = []
+
+    def say(*x):
+        lines.extend(" ".join(str(v) for v in x).split("\n"))
 
     tgt_all = load(a.target, "2y", csv=a.target_csv)["Close"]
     tgt = tgt_all.iloc[-a.window:]
@@ -90,8 +106,8 @@ def main():
         raise SystemExit("没有找到满足振幅条件的相似区间：可放宽 --amp-min/--amp-max 或增加 --scales")
     last = tgt.iloc[-1]
 
-    print(f"{a.target}: {tgt.index[0].date()} → {tgt.index[-1].date()} ({L} 日)  收盘 {last:.2f}")
-    print(f"{a.ref} 可用历史: {ref.index[0].date()} → {ref.index[-1].date()}\n")
+    say(f"{a.target}: {tgt.index[0].date()} → {tgt.index[-1].date()} ({L} 日)  收盘 {last:.2f}")
+    say(f"{a.ref} 可用历史: {ref.index[0].date()} → {ref.index[-1].date()}\n")
     rows, paths = [], []
     for i, (corr, amp, s, W, m) in enumerate(picks, 1):
         p = path(rv, s, W, m, L, H) / rv[s + W - 1]
@@ -104,14 +120,12 @@ def main():
     df = pd.DataFrame(rows)
     pd.set_option("display.width", 220)
     fmt = {c: "{:+.1%}".format for c in df.columns if c.startswith(("+", "max"))}
-    print(df.to_string(index=False, formatters={**fmt, "corr": "{:.2f}".format, "amp": "{:.2f}".format,
+    say(df.to_string(index=False, formatters={**fmt, "corr": "{:.2f}".format, "amp": "{:.2f}".format,
                                                 "p0": "{:.2f}".format, "p1": "{:.2f}".format}))
-    print(f"(days = {a.ref} 实际用的交易日数；speed = 时间伸缩倍数；amp = 振幅比；后续收益已换算到 {a.target} 的交易日)")
+    say(f"(days = {a.ref} 实际用的交易日数；speed = 时间伸缩倍数；amp = 振幅比；后续收益已换算到 {a.target} 的交易日)")
     for h in (5, 10, 20, H):
         v = df[f"+{h}d"]
-        print(f"+{h}日: 中位 {v.median():+.1%}  上涨占比 {(v > 0).mean():.0%}  → {a.target} 参考价 {last * (1 + v.median()):.2f}")
-    csv_out = out_path(a.outdir, f"{a.target}_vs_{a.ref}_analog.csv")
-    df.to_csv(csv_out, index=False)
+        say(f"+{h}日: 中位 {v.median():+.1%}  上涨占比 {(v > 0).mean():.0%}  → {a.target} 参考价 {last * (1 + v.median()):.2f}")
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 11), gridspec_kw={"height_ratios": [1.1, 1]})
     xt, xf = np.arange(-L + 1, 1), np.arange(0, H + 1)
@@ -159,9 +173,9 @@ def main():
     ax2.grid(alpha=0.2)
 
     fig.tight_layout()
-    out = out_path(a.outdir, f"{a.target}_vs_{a.ref}_analog.png")
-    fig.savefig(out, dpi=130)
-    print(f"\n图: {out}\n表: {csv_out}")
+    summary = {h: dict(median=df[f"+{h}d"].median(), up=(df[f"+{h}d"] > 0).mean(),
+                       price=last * (1 + df[f"+{h}d"].median())) for h in (5, 10, 20, H)}
+    return {"lines": lines, "table": df, "fig": fig, "summary": summary, "last": last}
 
 
 if __name__ == "__main__":

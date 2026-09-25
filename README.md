@@ -29,6 +29,19 @@ Python dependencies:
 python3 -m pip install -r requirements.txt   # or inside a venv on macOS
 ```
 
+## Web UI
+
+All four features are available in a browser UI (`app.py`, built with Streamlit):
+
+```bash
+python3 -m pip install -r requirements.txt
+streamlit run app.py          # opens http://localhost:8501
+```
+
+Pick a feature in the sidebar, fill in tickers and parameters (advanced options are in the "高级参数" panel), and click the button. Charts and tables can be downloaded, and every page accepts CSV uploads instead of live Yahoo data.
+
+**Deploy for free (a link you can open on your phone):** on [share.streamlit.io](https://share.streamlit.io), create an app from this repo with main file `app.py`. `packages.txt` installs a CJK font so Chinese chart labels render there.
+
 ## Run the scripts directly
 
 ```bash

@@ -40,7 +40,20 @@ def main():
     ap.add_argument("--ref-csv")
     ap.add_argument("--outdir", default=".")
     a = ap.parse_args()
+    res = run(a)
+    print("\n".join(res["lines"]))
+    out = out_path(a.outdir, f"{a.target}_{a.ref}_scenario_{a.direction}.png")
+    res["fig"].savefig(out, dpi=130)
+    print("\n图:", out)
+
+
+def run(a):
+    """返回 {"lines", "fig", "key": 关键数字 dict, "sensitivity": 锚点敏感性 DataFrame}"""
     setup_fonts()
+    lines = []
+
+    def say(*x):
+        lines.extend(" ".join(str(v) for v in x).split("\n"))
     up = a.direction == "up"
 
     tgt = load(a.target, "2y", csv=a.target_csv).iloc[-a.window:]
@@ -97,28 +110,28 @@ def main():
 
     seg = ref["Close"].iloc[e:p_end + 1]
     if up:
-        run = seg.cummax(); dd = seg / run - 1; worst = dd.idxmin(); top = seg.loc[:worst].idxmax()
+        run_ = seg.cummax(); dd = seg / run_ - 1; worst = dd.idxmin(); top = seg.loc[:worst].idxmax()
     else:
-        run = seg.cummin(); dd = seg / run - 1; worst = dd.idxmax(); top = seg.loc[:worst].idxmin()
+        run_ = seg.cummin(); dd = seg / run_ - 1; worst = dd.idxmax(); top = seg.loc[:worst].idxmin()
     target_px = ext_px * k
 
-    print(f"情景: {a.ref} {ps.date()} → {ext_day.date()} {'最高' if up else '最低'} {ext_px:.2f}（{'乐观' if up else '悲观'}）")
-    print(f"锚点: {a.ref} {anchor.date()} 收盘 {ref['Close'].iloc[e]:.2f}  ↔  {a.target} {today.date()} 收盘 {last:.2f}")
-    print(f"拟合: 相关 {corr:.3f}  振幅比 {amp:.2f}  时间伸缩 {m:g}x（{a.ref} 用 {W} 日走完 {a.target} {L} 日的形态）  价格比例 k={k:.3f}")
+    say(f"情景: {a.ref} {ps.date()} → {ext_day.date()} {'最高' if up else '最低'} {ext_px:.2f}（{'乐观' if up else '悲观'}）")
+    say(f"锚点: {a.ref} {anchor.date()} 收盘 {ref['Close'].iloc[e]:.2f}  ↔  {a.target} {today.date()} 收盘 {last:.2f}")
+    say(f"拟合: 相关 {corr:.3f}  振幅比 {amp:.2f}  时间伸缩 {m:g}x（{a.ref} 用 {W} 日走完 {a.target} {L} 日的形态）  价格比例 k={k:.3f}")
     if corr < 0.6:
-        print(f"⚠ 拟合度低（相关 {corr:.2f} < 0.6）：{a.target} 当前形态与这段 {a.ref} 行情并不像，"
+        say(f"⚠ 拟合度低（相关 {corr:.2f} < 0.6）：{a.target} 当前形态与这段 {a.ref} 行情并不像，"
               f"下面的推演只是“如果照搬这段路径”的假设，不要当作相似性结论")
-    print(f"{a.ref} 锚点→终点: {p_end - e} 个交易日  {ext_px / ref['Close'].iloc[e] - 1:+.0%}")
-    print(f"{a.target} 情景目标: {target_px:.2f}（{target_px / last:.1f} 倍）  时间 ≈ {to_date(p_end).date()}（约 {int(round((p_end - e) / m))} 个交易日后）")
-    print(f"途中最大{'回撤' if up else '反弹'} {dd.loc[worst]:+.0%}: {a.ref} {top.date()}→{worst.date()}  ↔ "
-          f"{a.target} 约 {to_date(idx.get_loc(top)).date()} {run[worst] * k:.2f} → {to_date(idx.get_loc(worst)).date()} {seg[worst] * k:.2f}")
+    say(f"{a.ref} 锚点→终点: {p_end - e} 个交易日  {ext_px / ref['Close'].iloc[e] - 1:+.0%}")
+    say(f"{a.target} 情景目标: {target_px:.2f}（{target_px / last:.1f} 倍）  时间 ≈ {to_date(p_end).date()}（约 {int(round((p_end - e) / m))} 个交易日后）")
+    say(f"途中最大{'回撤' if up else '反弹'} {dd.loc[worst]:+.0%}: {a.ref} {top.date()}→{worst.date()}  ↔ "
+          f"{a.target} 约 {to_date(idx.get_loc(top)).date()} {run_[worst] * k:.2f} → {to_date(idx.get_loc(worst)).date()} {seg[worst] * k:.2f}")
     for mult in ((2, 3, 4, 6, 8) if up else (0.8, 0.6, 0.5, 0.3)):
         hit = seg[seg * k >= last * mult] if up else seg[seg * k <= last * mult]
         if len(hit):
-            print(f"  {a.target} 到 {last * mult:.2f}（{mult:g} 倍）≈ {to_date(idx.get_loc(hit.index[0])).date()}  对应 {a.ref} {hit.index[0].date()}")
+            say(f"  {a.target} 到 {last * mult:.2f}（{mult:g} 倍）≈ {to_date(idx.get_loc(hit.index[0])).date()}  对应 {a.ref} {hit.index[0].date()}")
 
     # 其它锚点的敏感性：同一时间段内相关度次优、但锚点不同的候选
-    print("\n锚点敏感性（相关度前列、日期不同的锚点 → 目标价）:")
+    say("\n锚点敏感性（相关度前列、日期不同的锚点 → 目标价）:")
     cands = []
     for mm in np.arange(lo_s, hi_s + 1e-9, st_s):
         WW = int(round(L * mm))
@@ -129,13 +142,17 @@ def main():
             cands.append((float(np.mean(tz * (w - w.mean()) / w.std())), mm, idx[ee], (w.max() - w.min()) / trng,
                           ext_px / ref["Close"].iloc[ee] * last))
     cands.sort(key=lambda c: -c[0])
-    seen = []
+    seen, sens = [], []
     for c in cands:
         if all(abs((c[2] - s).days) > 10 for s in seen):
             seen.append(c[2])
-            print(f"  锚点 {c[2].date()}  相关 {c[0]:.2f}  振幅比 {c[3]:.2f}  时间 {c[1]:g}x  → 目标 {c[4]:.1f}")
+            sens.append(dict(锚点=c[2].date(), 相关=round(c[0], 2), 振幅比=round(float(c[3]), 2),
+                             时间伸缩=f"{c[1]:g}x", 目标价=round(float(c[4]), 2)))
+            say(f"  锚点 {c[2].date()}  相关 {c[0]:.2f}  振幅比 {c[3]:.2f}  时间 {c[1]:g}x  → 目标 {c[4]:.1f}")
         if len(seen) == 4:
             break
+
+    sens = pd.DataFrame(sens)
 
     # ---------- 作图 ----------
     js = np.arange(e - W + 1, p_end + 1)
@@ -174,9 +191,12 @@ def main():
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
     fig.autofmt_xdate()
     fig.tight_layout()
-    out = out_path(a.outdir, f"{a.target}_{a.ref}_scenario_{a.direction}.png")
-    fig.savefig(out, dpi=130)
-    print("\n图:", out)
+    key = dict(anchor=anchor.date(), anchor_px=float(ref["Close"].iloc[e]), corr=corr, amp=amp, speed=m,
+               k=k, last=float(last), target=float(target_px), mult=float(target_px / last),
+               target_date=to_date(p_end).date(), days=int(round((p_end - e) / m)), ext_day=ext_day.date(),
+               ext_px=float(ext_px), worst=float(dd.loc[worst]), worst_from=float(run_[worst] * k),
+               worst_to=float(seg[worst] * k))
+    return {"lines": lines, "fig": fig, "key": key, "sensitivity": sens}
 
 
 if __name__ == "__main__":

@@ -108,7 +108,7 @@ def verdict(r):
     return "\n".join(lines)
 
 
-def plot(ticker, df, r, ma, out):
+def plot(ticker, df, r, ma, out=None):
     n = len(df)
     x = np.arange(n)
     fig, ax = plt.subplots(figsize=(14, 7))
@@ -141,8 +141,20 @@ def plot(ticker, df, r, ma, out):
     ax.legend(loc="upper left", fontsize=8, ncol=2)
     ax.grid(alpha=0.2)
     fig.tight_layout()
-    fig.savefig(out, dpi=130)
-    plt.close(fig)
+    if out:
+        fig.savefig(out, dpi=130)
+        plt.close(fig)
+    return fig
+
+
+def run(ticker, period="2y", csv=None):
+    """供界面调用：返回 {"lines": 摘要文字行, "fig": Figure, "result": analyze 结果, "df": 行情}"""
+    setup_fonts()
+    df = load(ticker, period, csv=csv)
+    if len(df) < 20:
+        raise SystemExit(f"{ticker}: 数据不足 ({len(df)} 行)")
+    r, ma = analyze(ticker, df)
+    return {"lines": verdict(r).split("\n"), "fig": plot(ticker, df, r, ma), "result": r, "df": df}
 
 
 def main():

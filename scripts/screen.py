@@ -48,7 +48,22 @@ def main():
     ap.add_argument("--target-csv")
     ap.add_argument("--outdir", default=".")
     a = ap.parse_args()
+    res = run(a)
+    print("\n".join(res["lines"]))
+    csv_out = out_path(a.outdir, f"{a.target}_screen.csv")
+    res["all_best"].to_csv(csv_out, index=False)
+    out = out_path(a.outdir, f"{a.target}_screen.png")
+    res["fig"].savefig(out, dpi=130)
+    print(f"\n图: {out}\n表: {csv_out}")
+
+
+def run(a):
+    """返回 {"lines", "fig", "table": 汇总用的区间, "all_best": 各股票最佳匹配, "summary": 各期限统计}"""
     setup_fonts()
+    lines = []
+
+    def say(*x):
+        lines.extend(" ".join(str(v) for v in x).split("\n"))
 
     tgt = load(a.target, "2y", csv=a.target_csv)["Close"].iloc[-a.window:]
     L, H = len(tgt), a.horizon
@@ -59,8 +74,8 @@ def main():
 
     raw = yf.download(tickers, start=a.since, interval="1d", auto_adjust=False, progress=False, group_by="column")
     closes = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) else raw[["Close"]].rename(columns={"Close": tickers[0]})
-    print(f"{a.target}: {tgt.index[0].date()} → {tgt.index[-1].date()} ({L} 日)  收盘 {last:.2f}")
-    print(f"候选池 {len(tickers)} 只，取到数据 {int(closes.notna().any().sum())} 只，历史自 {a.since}\n")
+    say(f"{a.target}: {tgt.index[0].date()} → {tgt.index[-1].date()} ({L} 日)  收盘 {last:.2f}")
+    say(f"候选池 {len(tickers)} 只，取到数据 {int(closes.notna().any().sum())} 只，历史自 {a.since}\n")
 
     segs, best_rows = [], []
     for tk in tickers:
@@ -84,8 +99,6 @@ def main():
     if not segs:
         raise SystemExit("没有找到满足振幅条件的区间：放宽 --amp-min/--amp-max 或扩大候选池")
     allbest = pd.DataFrame(best_rows).sort_values("corr", ascending=False)
-    csv_out = out_path(a.outdir, f"{a.target}_screen.csv")
-    allbest.to_csv(csv_out, index=False)
 
     segs.sort(key=lambda x: -x[0]["corr"])
     chosen = [x for x in segs if x[0]["corr"] >= a.min_corr][:a.top] or segs[:a.top]
@@ -93,15 +106,18 @@ def main():
     pd.set_option("display.width", 230)
     fmt = {c: "{:+.1%}".format for c in df.columns if c.startswith(("+", "max"))}
     fm = {**fmt, "corr": "{:.2f}".format, "amp": "{:.2f}".format, "p0": "{:.2f}".format, "p1": "{:.2f}".format}
-    print(f"== 各股票最佳匹配（前 15，共 {len(allbest)} 只有合格区间）")
-    print(allbest.head(15)[["ticker", "start", "end", "speed", "corr", "amp"]].to_string(
+    say(f"== 各股票最佳匹配（前 15，共 {len(allbest)} 只有合格区间）")
+    say(allbest.head(15)[["ticker", "start", "end", "speed", "corr", "amp"]].to_string(
         index=False, formatters={"corr": "{:.2f}".format, "amp": "{:.2f}".format}))
-    print(f"\n== 汇总用的前 {len(df)} 段（相关 ≥ {a.min_corr}，每只股票最多 {a.per_ticker} 段）")
-    print(df.to_string(index=False, formatters=fm))
-    print(f"\n(后续收益已按时间伸缩换算到 {a.target} 的交易日)")
+    say(f"\n== 汇总用的前 {len(df)} 段（相关 ≥ {a.min_corr}，每只股票最多 {a.per_ticker} 段）")
+    say(df.to_string(index=False, formatters=fm))
+    say(f"\n(后续收益已按时间伸缩换算到 {a.target} 的交易日)")
+    summary = {}
     for h in (5, 10, 20, H):
         v = df[f"+{h}d"]
-        print(f"+{h}日: 中位 {v.median():+.1%}  四分位 [{v.quantile(.25):+.1%}, {v.quantile(.75):+.1%}]  "
+        summary[h] = dict(median=v.median(), q1=v.quantile(.25), q3=v.quantile(.75), up=(v > 0).mean(),
+                          price=last * (1 + v.median()))
+        say(f"+{h}日: 中位 {v.median():+.1%}  四分位 [{v.quantile(.25):+.1%}, {v.quantile(.75):+.1%}]  "
               f"上涨占比 {(v > 0).mean():.0%}  → {a.target} 中位参考价 {last * (1 + v.median()):.2f}")
 
     # ---------- 作图 ----------
@@ -137,9 +153,7 @@ def main():
     ax2.legend(loc="upper left", fontsize=9)
     ax2.grid(alpha=0.2)
     fig.tight_layout()
-    out = out_path(a.outdir, f"{a.target}_screen.png")
-    fig.savefig(out, dpi=130)
-    print(f"\n图: {out}\n表: {csv_out}")
+    return {"lines": lines, "fig": fig, "table": df, "all_best": allbest, "summary": summary, "last": last}
 
 
 if __name__ == "__main__":

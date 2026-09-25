@@ -1,4 +1,5 @@
 """共用：取数（yfinance 或本地 CSV）、中文字体、对数轴刻度。"""
+import functools
 import os
 
 import matplotlib
@@ -12,6 +13,12 @@ COLS = ["Open", "High", "Low", "Close", "Volume"]
 
 
 def load(ticker, period=None, start=None, end=None, csv=None):
+    """带进程内缓存的取数（界面里反复调参时不重复下载）；返回副本，调用方可随意修改。"""
+    return _load(ticker, period, start, end, csv).copy()
+
+
+@functools.lru_cache(maxsize=128)
+def _load(ticker, period=None, start=None, end=None, csv=None):
     """返回按日期升序的 OHLC(V) DataFrame（未复权收盘，便于和历史最高价等原始报价对照）。
 
     csv: 本地文件路径，需含 Date,Open,High,Low,Close 列（Yahoo / 券商导出格式均可）。
