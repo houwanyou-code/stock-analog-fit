@@ -52,8 +52,28 @@ def upload(label, key):
     return path
 
 
-def plot(fig, key):
-    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG, key=key)
+def mode():
+    """Viewer's current theme; charts use that mode's own validated palette steps."""
+    try:
+        return "dark" if st.context.theme.type == "dark" else "light"
+    except Exception:  # noqa: BLE001
+        return "light"
+
+
+def chart(fig_table, key, name, pct_cols=(), num_fmt="{:.2f}"):
+    """A chart with its table twin (every value reachable without hovering)."""
+    fig, table = fig_table
+    tab_chart, tab_table = st.tabs(["Chart", "Table"])
+    with tab_chart:
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CFG, key=key, theme=None)
+    with tab_table:
+        fmt = {c: num_fmt for c in table.select_dtypes("number").columns if c != "day"}
+        fmt.update({c: "{:+.1%}" for c in pct_cols})
+        if "volume" in table:
+            fmt["volume"] = "{:,.0f}"
+        st.dataframe(table.style.format(fmt, na_rep=""), use_container_width=True, hide_index=True, height=360)
+        st.download_button("Download CSV", table.to_csv(index=False).encode("utf-8"), file_name=name,
+                           mime="text/csv", key=f"dl_{key}")
 
 
 def show_table(df, name, num_cols=()):
@@ -119,17 +139,18 @@ def analog_params(prefix, default_window=60):
 
 # ---------- pages ----------
 def page_trend():
-    c1, c2 = st.columns([3, 1])
-    tickers = c1.text_input("Tickers (comma-separated)", "NIO, SECZ").upper()
-    period = c2.selectbox("Period", ["6mo", "1y", "2y", "5y", "10y", "max"], index=2)
-    csv = upload("Or upload a CSV for the first ticker (optional)", "trend_csv")
-    if st.button("Run", type="primary", key="go_trend"):
-        out = []
-        for i, t in enumerate([x.strip() for x in tickers.split(",") if x.strip()]):
-            res = run_safely(kline_fit.run, t, period, csv if i == 0 else None)
-            if res:
-                out.append((t, res))
-        st.session_state["trend"] = out
+    with st.container(border=True):
+        c1, c2 = st.columns([3, 1])
+        tickers = c1.text_input("Tickers (comma-separated)", "NIO, SECZ").upper()
+        period = c2.selectbox("Period", ["6mo", "1y", "2y", "5y", "10y", "max"], index=2)
+        csv = upload("Or upload a CSV for the first ticker (optional)", "trend_csv")
+        if st.button("Run", type="primary", key="go_trend"):
+            out = []
+            for i, t in enumerate([x.strip() for x in tickers.split(",") if x.strip()]):
+                res = run_safely(kline_fit.run, t, period, csv if i == 0 else None)
+                if res:
+                    out.append((t, res))
+            st.session_state["trend"] = out
     for t, res in st.session_state.get("trend", []):
         st.subheader(t)
         r = res["result"]
@@ -143,62 +164,67 @@ def page_trend():
             f"R² {r['long']['r2']:.2f}")
         kpi(c[3], "Position in ±2σ channel", f"{r['long']['z']:+.2f}σ")
         st.markdown("\n".join(f"- {x}" for x in res["lines_en"]))
-        plot(charts.kline_chart(res), f"k_{t}")
+        chart(charts.kline_chart(res, mode()), f"k_{t}", f"{t}_prices_and_fits.csv")
         st.divider()
 
 
 def page_analog():
-    c1, c2, c3 = st.columns([2, 2, 1])
-    target = c1.text_input("Target ticker", "SECZ").upper().strip()
-    ref = c2.text_input("Reference ticker (full history)", "NIO").upper().strip()
-    top = c3.number_input("Top N windows", 1, 10, 5)
-    window, horizon, amp, scales = analog_params("an")
-    u1, u2 = st.columns(2)
-    with u1:
-        tcsv = upload("Target CSV (optional)", "an_t")
-    with u2:
-        rcsv = upload("Reference CSV (optional)", "an_r")
-    if st.button("Find analogs", type="primary", key="go_an"):
-        a = SimpleNamespace(target=target, ref=ref, window=window, horizon=horizon, top=top,
-                            scales=",".join(f"{x:g}" for x in scales), amp_min=amp[0], amp_max=amp[1],
-                            target_csv=tcsv, ref_csv=rcsv)
-        r = run_safely(analog.run, a)
-        st.session_state["analog"] = (a, r) if r else None
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([2, 2, 1])
+        target = c1.text_input("Target ticker", "SECZ").upper().strip()
+        ref = c2.text_input("Reference ticker (full history)", "NIO").upper().strip()
+        top = c3.number_input("Top N windows", 1, 10, 5)
+        window, horizon, amp, scales = analog_params("an")
+        u1, u2 = st.columns(2)
+        with u1:
+            tcsv = upload("Target CSV (optional)", "an_t")
+        with u2:
+            rcsv = upload("Reference CSV (optional)", "an_r")
+        if st.button("Find analogs", type="primary", key="go_an"):
+            a = SimpleNamespace(target=target, ref=ref, window=window, horizon=horizon, top=top,
+                                scales=",".join(f"{x:g}" for x in scales), amp_min=amp[0], amp_max=amp[1],
+                                target_csv=tcsv, ref_csv=rcsv)
+            r = run_safely(analog.run, a)
+            st.session_state["analog"] = (a, r) if r else None
     res = st.session_state.get("analog")
     if res:
         a, r = res
         horizon_metrics(r["summary"], r["last"], a.target)
-        plot(charts.analog_overlay(r["plot"]), "an_overlay")
-        plot(charts.fan_chart(r["plot"]), "an_fan")
+        chart(charts.analog_overlay(r["plot"], mode()), "an_overlay", f"{a.target}_vs_{a.ref}_overlay.csv")
+        chart(charts.fan_chart(r["plot"], mode()), "an_fan", f"{a.target}_vs_{a.ref}_paths.csv",
+              pct_cols=["min", "25th pct", "median", "75th pct", "max"])
         st.markdown("**Matching windows**")
         show_table(r["table"], f"{a.target}_vs_{a.ref}_analog.csv", NUM)
         st.caption(TABLE_HELP)
 
 
 def page_screen():
-    c1, c2, c3 = st.columns([2, 1, 1])
-    target = c1.text_input("Target ticker", "SECZ", key="sc_t").upper().strip()
-    since = c2.date_input("Candidate history since", date(2012, 1, 1), key="sc_since")
-    top = c3.number_input("Pool top N windows", 3, 30, 10, key="sc_top")
-    universe = st.text_area("Candidate tickers (comma-separated, editable)", screen.DEFAULT_UNIVERSE.replace(",", ", "), height=110)
-    c4, c5 = st.columns(2)
-    per = c4.number_input("Max windows per ticker", 1, 5, 2)
-    min_corr = c5.slider("Minimum correlation to include", 0.5, 0.99, 0.75, 0.01)
-    window, horizon, amp, scales = analog_params("sc")
-    tcsv = upload("Target CSV (optional)", "sc_csv")
-    if st.button("Run screen", type="primary", key="go_sc"):
-        a = SimpleNamespace(target=target, universe=universe.replace(" ", "").replace("\n", ","),
-                            since=str(since), window=window, horizon=horizon, per_ticker=per, top=top,
-                            min_corr=min_corr, scales=",".join(f"{x:g}" for x in scales),
-                            amp_min=amp[0], amp_max=amp[1], target_csv=tcsv)
-        r = run_safely(screen.run, a)
-        st.session_state["screen"] = (a, r) if r else None
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([2, 1, 1])
+        target = c1.text_input("Target ticker", "SECZ", key="sc_t").upper().strip()
+        since = c2.date_input("Candidate history since", date(2012, 1, 1), key="sc_since")
+        top = c3.number_input("Pool top N windows", 3, 30, 10, key="sc_top")
+        universe = st.text_area("Candidate tickers (comma-separated, editable)", screen.DEFAULT_UNIVERSE.replace(",", ", "), height=110)
+        c4, c5 = st.columns(2)
+        per = c4.number_input("Max windows per ticker", 1, 5, 2)
+        min_corr = c5.slider("Minimum correlation to include", 0.5, 0.99, 0.75, 0.01)
+        window, horizon, amp, scales = analog_params("sc")
+        tcsv = upload("Target CSV (optional)", "sc_csv")
+        if st.button("Run screen", type="primary", key="go_sc"):
+            a = SimpleNamespace(target=target, universe=universe.replace(" ", "").replace("\n", ","),
+                                since=str(since), window=window, horizon=horizon, per_ticker=per, top=top,
+                                min_corr=min_corr, scales=",".join(f"{x:g}" for x in scales),
+                                amp_min=amp[0], amp_max=amp[1], target_csv=tcsv)
+            r = run_safely(screen.run, a)
+            st.session_state["screen"] = (a, r) if r else None
     res = st.session_state.get("screen")
     if res:
         a, r = res
         horizon_metrics(r["summary"], r["last"], a.target)
-        plot(charts.norm_overlay(r["plot"], 5), "sc_overlay")
-        plot(charts.fan_chart(r["plot"]), "sc_fan")
+        fig_t = charts.norm_overlay(r["plot"], 5, mode())
+        chart(fig_t, "sc_overlay", f"{a.target}_screen_overlay.csv", pct_cols=list(fig_t[1].columns[1:]))
+        chart(charts.fan_chart(r["plot"], mode()), "sc_fan", f"{a.target}_screen_paths.csv",
+              pct_cols=["min", "25th pct", "median", "75th pct", "max"])
         st.markdown("**Pooled windows**")
         show_table(r["table"], f"{a.target}_screen_top.csv", NUM)
         st.caption(TABLE_HELP)
@@ -210,36 +236,37 @@ def page_screen():
 
 
 def page_scenario():
-    c1, c2, c3 = st.columns([2, 2, 2])
-    target = c1.text_input("Target ticker", "SECZ", key="sn_t").upper().strip()
-    ref = c2.text_input("Reference ticker", "NIO", key="sn_r").upper().strip()
-    direction = c3.radio("Case", ["up", "down"], horizontal=True,
-                         format_func=lambda x: "Bull (to the period high)" if x == "up" else "Bear (to the period low)")
-    d1, d2 = st.columns(2)
-    ps = d1.date_input("Reference path start", date(2020, 6, 1), min_value=date(1990, 1, 1))
-    pe = d2.date_input("Reference path end (approx.)", date(2021, 1, 11), min_value=date(1990, 1, 1),
-                       help="The highest (bull) or lowest (bear) price between start and this date becomes the end point.")
-    with st.expander("Advanced settings"):
-        e1, e2, e3 = st.columns(3)
-        af = e1.date_input("Anchor search from (optional)", None, key="sn_af")
-        at = e2.date_input("Anchor search to (optional)", None, key="sn_at",
-                           help="Defaults to the first half of the path (start → extreme point).")
-        window = e3.number_input("Comparison window (target's last N days)", 15, 500, 60, key="sn_w")
-        e4, e5 = st.columns(2)
-        sc = e4.slider("Time-scale range", 0.25, 4.0, (0.5, 3.0), 0.25, key="sn_sc")
-        amp = e5.slider("Swing-ratio range", 0.2, 3.0, (0.8, 1.25), 0.05, key="sn_amp")
-    u1, u2 = st.columns(2)
-    with u1:
-        tcsv = upload("Target CSV (optional)", "sn_tc")
-    with u2:
-        rcsv = upload("Reference CSV (optional)", "sn_rc")
-    if st.button("Project scenario", type="primary", key="go_sn"):
-        a = SimpleNamespace(target=target, ref=ref, path_start=str(ps), path_end=str(pe), direction=direction,
-                            anchor_from=str(af) if af else None, anchor_to=str(at) if at else None,
-                            window=window, scales=f"{sc[0]}:{sc[1]}:0.25", amp_min=amp[0], amp_max=amp[1],
-                            target_csv=tcsv, ref_csv=rcsv)
-        r = run_safely(scenario.run, a)
-        st.session_state["scenario"] = (a, r) if r else None
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([2, 2, 2])
+        target = c1.text_input("Target ticker", "SECZ", key="sn_t").upper().strip()
+        ref = c2.text_input("Reference ticker", "NIO", key="sn_r").upper().strip()
+        direction = c3.radio("Case", ["up", "down"], horizontal=True,
+                             format_func=lambda x: "Bull (to the period high)" if x == "up" else "Bear (to the period low)")
+        d1, d2 = st.columns(2)
+        ps = d1.date_input("Reference path start", date(2020, 6, 1), min_value=date(1990, 1, 1))
+        pe = d2.date_input("Reference path end (approx.)", date(2021, 1, 11), min_value=date(1990, 1, 1),
+                           help="The highest (bull) or lowest (bear) price between start and this date becomes the end point.")
+        with st.expander("Advanced settings"):
+            e1, e2, e3 = st.columns(3)
+            af = e1.date_input("Anchor search from (optional)", None, key="sn_af")
+            at = e2.date_input("Anchor search to (optional)", None, key="sn_at",
+                               help="Defaults to the first half of the path (start → extreme point).")
+            window = e3.number_input("Comparison window (target's last N days)", 15, 500, 60, key="sn_w")
+            e4, e5 = st.columns(2)
+            sc = e4.slider("Time-scale range", 0.25, 4.0, (0.5, 3.0), 0.25, key="sn_sc")
+            amp = e5.slider("Swing-ratio range", 0.2, 3.0, (0.8, 1.25), 0.05, key="sn_amp")
+        u1, u2 = st.columns(2)
+        with u1:
+            tcsv = upload("Target CSV (optional)", "sn_tc")
+        with u2:
+            rcsv = upload("Reference CSV (optional)", "sn_rc")
+        if st.button("Project scenario", type="primary", key="go_sn"):
+            a = SimpleNamespace(target=target, ref=ref, path_start=str(ps), path_end=str(pe), direction=direction,
+                                anchor_from=str(af) if af else None, anchor_to=str(at) if at else None,
+                                window=window, scales=f"{sc[0]}:{sc[1]}:0.25", amp_min=amp[0], amp_max=amp[1],
+                                target_csv=tcsv, ref_csv=rcsv)
+            r = run_safely(scenario.run, a)
+            st.session_state["scenario"] = (a, r) if r else None
     res = st.session_state.get("scenario")
     if res:
         a, r = res
@@ -248,12 +275,13 @@ def page_scenario():
             st.warning(f"Weak fit (correlation {k['corr']:.2f} < 0.6): {a.target}'s current shape does not really "
                        f"resemble this {a.ref} period. Read the projection as a 'what if it copied this path' exercise.")
         c = st.columns(4)
-        kpi(c[0], "Scenario target", f"{k['target']:.2f}", f"{k['mult']:.1f}× the latest close {k['last']:.2f}")
+        c[0].metric("Scenario target", f"{k['target']:.2f}", f"{k['mult'] - 1:+.0%} vs. latest close")
+        c[0].caption(f"Latest close {k['last']:.2f}")
         kpi(c[1], "Reached around", str(k["target_date"]), f"≈ {k['days']} trading days from now")
         kpi(c[2], "Anchor", str(k["anchor"]), f"{a.ref} close {k['anchor_px']:.2f} · r {k['corr']:.2f} · {k['speed']:g}x")
         kpi(c[3], "Largest " + ("drawdown" if a.direction == "up" else "rebound") + " on the way",
             f"{k['worst']:+.0%}", f"{k['worst_from']:.2f} → {k['worst_to']:.2f}")
-        plot(charts.scenario_chart(r["plot"]), "sn_chart")
+        chart(charts.scenario_chart(r["plot"], mode()), "sn_chart", f"{a.target}_{a.ref}_scenario_path.csv")
         st.markdown("**Anchor sensitivity**: target prices when aligned to other candidate dates. Treat the result as a range.")
         show_table(r["sensitivity"], f"{a.target}_{a.ref}_scenario_sensitivity.csv", ["corr", "amp_ratio", "target"])
 
@@ -264,7 +292,9 @@ with st.sidebar:
     page = st.radio("Feature", list(PAGES), label_visibility="collapsed")
     st.caption(PAGES[page])
     st.divider()
-    st.caption("Charts: drag to zoom, double-click to reset, hover for values, camera icon to save a PNG.")
+    st.caption("Charts: drag to zoom, double-click to reset, hover for values, camera icon to save a PNG. "
+               "Every chart has a Table tab with the same numbers.")
+    st.caption("Light or dark: follows your system; change it under ⋮ → Settings.")
     st.caption("Data: Yahoo Finance daily bars via yfinance, or your own CSV uploads.")
     st.caption("Scenarios based on historical price patterns only. Not a forecast and not investment advice.")
 

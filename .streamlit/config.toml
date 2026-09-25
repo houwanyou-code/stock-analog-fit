@@ -1,5 +1,36 @@
+# Light and dark are each defined from the dataviz reference palette (not an automatic flip).
+# Viewers follow their OS setting by default and can switch under ⋮ → Settings.
+
 [theme]
-primaryColor = "#c2185b"
+baseRadius = "0.5rem"
+showWidgetBorder = true
+chartCategoricalColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
+
+[theme.light]
+primaryColor = "#2a78d6"
+backgroundColor = "#fcfcfb"
+secondaryBackgroundColor = "#f3f2ef"
+textColor = "#0b0b0b"
+borderColor = "#e1e0d9"
+linkColor = "#256abf"
+greenColor = "#006300"
+greenTextColor = "#006300"
+redColor = "#d03b3b"
+redTextColor = "#d03b3b"
+chartCategoricalColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
+
+[theme.dark]
+primaryColor = "#3987e5"
+backgroundColor = "#1a1a19"
+secondaryBackgroundColor = "#242423"
+textColor = "#ffffff"
+borderColor = "#383835"
+linkColor = "#6da7ec"
+greenColor = "#0ca30c"
+greenTextColor = "#0ca30c"
+redColor = "#d03b3b"
+redTextColor = "#e66767"
+chartCategoricalColors = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"]
 
 [server]
 headless = true
